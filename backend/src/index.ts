@@ -25,10 +25,10 @@ const geminiModel = googleAI.getGenerativeModel({
  
 const generate = async (prompt : string) => {
   try {
-    const result = await geminiModel.generateContent(prompt);
-    const response = result.response;
-    console.log(response.text());
-    return response.text();
+    const result = await geminiModel.generateContentStream(prompt);
+    const response = result;
+    console.log(response);
+    return response;
   } catch (error) {
     console.log("response error", error);
   }
@@ -39,15 +39,26 @@ app.get("/",(req,res)=>{
         msg : " into the app"
     })
 })
-app.post("/prompt", async (req,res)=>{
-    const prompt = req.body.prompt;
-    const result = await generate(prompt);
+app.post("/prompt", async (req, res) => {
+  const prompt = req.body.prompt;
 
-    res.json({
-      msg : "gemini responded back", 
-      result : result
-    })
-})
+  res.setHeader("Content-Type", "text/json");
+  res.setHeader("Transfer-Encoding", "chunked");
+
+  try {
+    const result = await geminiModel.generateContentStream([prompt]);
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      res.write(text); 
+    }
+
+    res.end(); 
+  } catch (error) {
+    console.error("Streaming error:", error);
+    res.status(500).send("Error while streaming Gemini response.");
+  }
+});
 
 
 app.listen(port,()=>{
